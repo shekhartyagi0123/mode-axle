@@ -1,10 +1,11 @@
 from flask import Flask, request, jsonify
+import traceback
 import joblib
+import pandas as pd
 
 app = Flask(__name__)
 
-# Load trained model
-model = joblib.load('axle_failure_model.pkl')
+model = joblib.load("axle_failure_model.pkl")
 
 @app.route('/')
 def home():
@@ -12,16 +13,25 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    data = request.get_json()
-    voltage = data.get('voltage')
-    current = data.get('current')
+    try:
+        data = request.get_json()
 
-    if voltage is None or current is None:
-        return jsonify({'error': 'Missing voltage or current'}), 400
+        voltage = data.get('voltage')
+        current = data.get('current')
 
-    prediction = model.predict([[voltage, current]])
-    result = 'Failure Predicted' if prediction[0] == 1 else 'Normal'
-    return jsonify({'prediction': result})
+        # Check inputs
+        if voltage is None or current is None:
+            return jsonify({'error': 'Missing voltage or current'}), 400
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+        input_df = pd.DataFrame([[voltage, current]], columns=['Voltage', 'Current'])
+
+        prediction = model.predict(input_df)[0]
+
+        return jsonify({'prediction': 'Failure' if prediction == 1 else 'Normal'})
+
+    except Exception as e:
+        return jsonify({
+            'error': 'Prediction failed',
+            'details': str(e),
+            'trace': traceback.format_exc()
+        }), 500
